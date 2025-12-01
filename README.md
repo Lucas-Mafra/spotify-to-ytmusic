@@ -51,7 +51,6 @@ Run the CLI:
     │── spotify2yt/
     │   │── __init__.py
     │   │── cli.py
-    │   │── compare.py
     │   │── conection_test.py
     │   │── spotify_client.py
     │   │── ytmusic_client.py
