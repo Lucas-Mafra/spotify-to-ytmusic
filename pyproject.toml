@@ -1,0 +1,15 @@
+[project]
+name = "spotify2yt"
+version = "1.0"
+description = "CLI tool to migrate playlists between Spotify and YouTube Music"
+requires-python = ">=3.10"
+dependencies = [
+    "typer",
+    "spotipy",
+    "ytmusicapi",
+    "python-dotenv",
+    "rich"
+]
+
+[project.scripts]
+spotify2yt = "spotify2yt.cli:app"

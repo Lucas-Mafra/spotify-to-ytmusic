@@ -1,0 +1,55 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.pkl
+*.p
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# VSCode / Editors
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# --- Project Secrets ---
+.env
+.cache
+*.env
+secret.json
+headers_auth.json
+
+# --- Logs ---
+*.log
+
+# --- Bytecode cache ---
+.pytest_cache/
+.mypy_cache/
+
+# --- YTMusic / Spotipy auth ---
+oauth.json
+browser.json
+spotify_token.json
+
+# --- Optional cache ---
+cache/
+tmp/
+temp/
