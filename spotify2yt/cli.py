@@ -145,7 +145,12 @@ def create_playlist_ytmusic(
     if not ytmusic_songsid_cache:
         print("[red]No song IDs in cache. Run 'searchsongs-ytmusic' first.[/red]")
         return
-
+    
+    privacy.upper()
+    if privacy not in ("PRIVATE", "PUBLIC", "UNLISTED"):
+        print("[red]The privacy parameter must be PRIVATE, PUBLIC, or UNLISTED.[/red]")
+        return
+    
     print("[cyan]Creating YouTube Music playlist...[/cyan]")
     result = create_ytmusic_playlist(playlist_name, privacy, ytmusic_songsid_cache)
 
