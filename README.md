@@ -66,7 +66,7 @@ This is the method I believe is the easiest to follow. This method is recommende
 3. Filter the requests by searching for → https://music.youtube.com/youtubei/v1/
 4. Find a POST request and copy its request headers.
 
-Before doing this, open your terminal and run:
+After doing this, open your terminal and run:
 
 ```
 ytmusicapi browser
