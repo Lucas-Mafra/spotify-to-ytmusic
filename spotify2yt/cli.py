@@ -56,10 +56,13 @@ def start():
            [/bold cyan]
            [bold yellow]
            Commands:
-                - import-spotify
+                - import-spotify: url
+                - import-ytmusic: id
                 - getplaylists-spotify
+                - getplaylists-ytmusic
                 - searchsongs-ytmusic
-                - create-ytmusic-playlist
+                - create-ytmusic-playlist: playlist_name, privacy (optional)
+                - clear-cache
            [/bold yellow]
            """)
 
@@ -147,6 +150,7 @@ def create_playlist_ytmusic(
     result = create_ytmusic_playlist(playlist_name, privacy, ytmusic_songsid_cache)
 
     print(f'[green]{result}[/green]')
+
 
 @app.command("clear-cache")
 def clear_cache():

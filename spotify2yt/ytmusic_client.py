@@ -1,4 +1,3 @@
-# Clique em uma requisição que comece com https://music.youtube.com/youtubei/v1/… (incrivelmente é o metodo mais facil) 
 from ytmusicapi import YTMusic
 from tqdm import tqdm
 import logging
