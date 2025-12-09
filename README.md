@@ -115,6 +115,8 @@ spotify2yt start
 | `import-ytmusic` | Imports tracks from a Youtube Music playlist |
 | `searchsongs-ytmusic` | Searches for matching YouTube Music tracks |
 | `create-ytmusic-playlist` | Creates a new playlist on YouTube Music |
+| `transfer-all` | Transfers all Spotify playlists to YouTube Music |
+| `fast-playlist` | Transfers a single Spotify playlist to YouTube Music |
 | `clear-cache` | Clears local caches |
 
 ---
