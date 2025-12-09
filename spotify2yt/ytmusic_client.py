@@ -60,7 +60,6 @@ def create_ytmusic_playlist(
         logging.exception("Error creating YouTube Music playlist")
         return f"Failed to create playlist '{playlist_name}': {e}"
 
-
 def get_ytmusic_playlists():
     playlists = ytmusic.get_library_playlists()
     result = []
@@ -76,3 +75,11 @@ def get_ytmusic_playlists():
 
     return result
 
+
+def get_ytmusic_playlist_name(playlist_id: str):
+    result = ytmusic.get_playlist(playlist_id)
+    return result["title"]
+
+
+def delete_ytmusic_playlist(playlist_id: str):
+    return ytmusic.delete_playlist(playlist_id)

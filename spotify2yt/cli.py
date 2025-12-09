@@ -3,9 +3,8 @@ import logging
 import json
 import os
 from rich import print
-from .spotify_client import get_spotify_tracks, get_spotify_playlists
-from .ytmusic_client import search_songs_ytmusic, create_ytmusic_playlist, get_ytmusic_playlists, get_ytmusic_playlist_tracks
-
+from .spotify_client import get_spotify_tracks, get_spotify_playlists, select_spotify_playlist
+from . import ytmusic_client as ytm
 app = typer.Typer()
 
 CACHE_FILE = "cache.json"
@@ -42,6 +41,8 @@ def save_cache():
 spotify_tracks_cache = []
 ytmusic_tracks_cache = []
 ytmusic_songsid_cache = []
+spotify_playlist_count = 0
+ytmusic_playlist_count = 0
 load_cache()
 
 
@@ -56,12 +57,14 @@ def start():
            [/bold cyan]
            [bold yellow]
            Commands:
-                - import-spotify: url
-                - import-ytmusic: id
+                - import-spotify: url spotify
+                - import-ytmusic: id ytmusic
                 - getplaylists-spotify
                 - getplaylists-ytmusic
                 - searchsongs-ytmusic
-                - create-ytmusic-playlist: playlist_name, privacy (optional)
+                - create-ytmusic-playlist: playlist_name, privacy (optional, default value: PRIVATE)
+                - transfer-all
+                - fast-playlist: url spotify
                 - clear-cache
            [/bold yellow]
            """)
@@ -81,7 +84,7 @@ def import_user_playlist_spotify():
 
 @app.command("getplaylists-ytmusic")
 def import_user_playlist_ytmusic():
-    playlists = get_ytmusic_playlists()
+    playlists = ytm.get_ytmusic_playlists()
 
     if not playlists:
         print("No playlists found.")
@@ -112,9 +115,9 @@ def import_ytmusic(id: str):
 
     print("[bold cyan]Fetching Youtube Music playlist...[/bold cyan]")
     try:
-        ytmusic_tracks_cache = get_ytmusic_playlist_tracks(id)
+        ytmusic_tracks_cache = ytm.get_ytmusic_playlist_tracks(id)
         save_cache()
-        print(f"[green]Imported {len(ytmusic_tracks_cache)} tracks from Spotify.[/green]")
+        print(f"[green]Imported {len(ytmusic_tracks_cache)} tracks from YouTube Music.[/green]")
     
     except Exception as e:
         logging.exception("Error catching Spotify playlist musics.")
@@ -130,7 +133,7 @@ def get_idsongs_ytmusic():
         return
 
     print("[cyan]Searching for IDs on YouTube Music...[/cyan]")
-    ytmusic_songsid_cache = search_songs_ytmusic(spotify_tracks_cache)
+    ytmusic_songsid_cache = ytm.search_songs_ytmusic(spotify_tracks_cache)
     save_cache()
 
     print("[green]Number of tracks found:[/green]")
@@ -146,15 +149,55 @@ def create_playlist_ytmusic(
         print("[red]No song IDs in cache. Run 'searchsongs-ytmusic' first.[/red]")
         return
     
-    privacy.upper()
+    
     if privacy not in ("PRIVATE", "PUBLIC", "UNLISTED"):
         print("[red]The privacy parameter must be PRIVATE, PUBLIC, or UNLISTED.[/red]")
         return
     
     print("[cyan]Creating YouTube Music playlist...[/cyan]")
-    result = create_ytmusic_playlist(playlist_name, privacy, ytmusic_songsid_cache)
+    result = ytm.create_ytmusic_playlist(playlist_name, privacy, ytmusic_songsid_cache)
 
     print(f'[green]{result}[/green]')
+
+
+@app.command("transfer-all")
+def transfer_all_playlist():
+    clear_cache()
+    
+    playlists = get_spotify_playlists()
+
+    try:
+        for p in playlists:
+            os.system('cls' if os.name == 'nt' else 'clear')
+
+            name_playlist = p['name']
+            playlist_link = p['link']
+
+            print(f"[bold cyan]Transferring {name_playlist} playlist...[/bold cyan]")
+
+            import_spotify(playlist_link)
+            get_idsongs_ytmusic()
+            create_playlist_ytmusic(name_playlist, privacy="PRIVATE")
+
+        print(f'[green]Transfer sucessed![/green]')
+    
+    except Exception as e:
+        logging.exception("Error transferring Spotify playlist to YouTube Music.")
+        return f"Failed to trasnfer playlists: {e}"
+    
+
+@app.command("fast-playlist")
+def fast_playlist_transfer(url: str):
+    playlist_name = select_spotify_playlist(url)
+
+    try:
+        import_spotify(url)
+        get_idsongs_ytmusic()
+        create_playlist_ytmusic(playlist_name, privacy="PRIVATE")
+    
+    except Exception as e:
+        logging.exception("Error creating Youtube Music playlist.")
+        return f"Failed creating playlist: {e}"
 
 
 @app.command("clear-cache")

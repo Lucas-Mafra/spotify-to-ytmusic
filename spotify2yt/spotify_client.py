@@ -49,7 +49,7 @@ def get_spotify_playlists():
     while playlists_page:
         for playlist in playlists_page.get("items", []):
             playlists.append({
-                "name": playlist.get("name", "Sem nome"),
+                "name": playlist.get("name", "No name"),
                 "link": playlist.get("external_urls", {}).get("spotify", "")
             })
 
@@ -57,3 +57,6 @@ def get_spotify_playlists():
         playlists_page = sp.next(playlists_page) if next_page else None
 
     return playlists
+
+def select_spotify_playlist(url: str):
+    return sp.playlist(url)["name"]
