@@ -11,5 +11,6 @@ dependencies = [
     "rich"
 ]
 
-[project.scripts]
-spotify2yt = "spotify2yt.cli:app"
+[build-system]
+requires = []
+build-backend = "setuptools.build_meta"

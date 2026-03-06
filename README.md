@@ -9,6 +9,14 @@ A simple Python CLI tool that transfers tracks from a Spotify playlist to a YouT
 - Search Spotify tracks on YouTube Music  
 - Create playlists on YouTube Music  
 
+## Architecture
+
+This is an **executable-only project** - it's designed to be run directly as a command-line tool rather than installed as a Python package. The application is self-contained and can be:
+
+- Run directly with `python main.py`
+
+All code is in the `spotify2yt/` directory, and `main.py` serves as the entry point.
+
 
 ## Requirements
 
@@ -84,56 +92,109 @@ This file contains your session headers.
 
 
 
-## Installation
+## Installation & Setup
 
-In the project root (where `pyproject.toml` is located), run:
+### 1. Clone and Install Dependencies
 
+```bash
+# Clone the repository
+git clone <repository-url>
+cd spotify-to-ytmusic
+
+# Install Python dependencies
+pip install -r requirements.txt
 ```
-pip install -e .
+
+### 2. Configure Environment
+
+Copy `.env.example` to `.env` and fill in your credentials:
+
+```bash
+cp .env.example .env
 ```
 
-This installs the CLI entry point `spotify2yt`.
+Then edit `.env` with your Spotify and YouTube Music credentials.
+
 
 
 ## Usage
 
+### Running the Application
 
-Start the welcome screen:
+**Option 1: Direct Python (Cross-platform)**
 
+```bash
+python main.py [command]
 ```
-spotify2yt start
+
+**Option 2: Windows Batch Script**
+
+```bash
+run.bat [command]
+```
+
+**Option 3: Windows PowerShell**
+
+```bash
+./run.ps1 [command]
+```
+
+**Option 4: Unix/Linux/Mac Shell**
+
+```bash
+./run.sh [command]
+```
+
+**Option 5: Python Module**
+
+```bash
+python -m spotify2yt [command]
+```
+
+### Welcome Screen
+
+```bash
+python main.py start
 ```
 
 ### Available Commands
 
-| Command | Description |
-|--------|-------------|
-| `start` | Displays the welcome message and basic instructions |
-| `getplaylists-spotify` | Lists all Spotify playlists for the user |
-| `getplaylists-ytmusic` | Lists all Youtube Music playlists for the user |
-| `import-spotify` | Imports tracks from a Spotify playlist |
-| `import-ytmusic` | Imports tracks from a Youtube Music playlist |
-| `searchsongs-ytmusic` | Searches for matching YouTube Music tracks |
-| `create-ytmusic-playlist` | Creates a new playlist on YouTube Music |
-| `transfer-all` | Transfers all Spotify playlists to YouTube Music |
-| `fast-playlist` | Transfers a single Spotify playlist to YouTube Music |
-| `clear-cache` | Clears local caches |
+**Spotify Commands:**
+- `python main.py spotify playlists` - List your Spotify playlists
+- `python main.py spotify import <URL>` - Import tracks from a Spotify playlist
 
----
+**YouTube Music Commands:**
+- `python main.py ytmusic playlists` - List your YouTube Music playlists  
+- `python main.py ytmusic import <ID>` - Import tracks from a YouTube Music playlist
+- `python main.py ytmusic search` - Search for imported Spotify tracks on YouTube Music
+- `python main.py ytmusic create <NAME>` - Create a new YouTube Music playlist
+
+**Transfer Commands:**
+- `python main.py transfer all` - Transfer all your Spotify playlists to YouTube Music
+- `python main.py transfer quick <URL>` - Quickly transfer a single Spotify playlist
+
+**Utility Commands:**
+- `python main.py clear-cache` - Clear all cached data
+
 
 ## Project Structure
 
 ```
 spotify-to-ytmusic/
-│── spotify2yt/
-│   │── __init__.py
-│   │── cli.py
-│   │── conection_test.py
-│   │── spotify_client.py
-│   │── ytmusic_client.py
-│── pyproject.toml
-│── README.md
-│── requirements.txt
+├── main.py                 (Executable entry point)
+├── spotify2yt/             (Application code)
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── cli.py
+│   ├── cache.py
+│   ├── spotify_client.py
+│   ├── ytmusic_client.py
+│   └── conection_test.py
+├── .env.example            (Configuration template)
+├── .env                    (Configuration - not tracked)
+├── pyproject.toml          (Dependencies)
+├── requirements.txt        (Dependencies)
+└── README.md
 ```
 
 ## Contributing
