@@ -1,45 +1,45 @@
 # spotify2yt — Spotify to YouTube Music CLI
 
-A simple Python CLI tool that transfers tracks from a Spotify playlist to a YouTube Music playlist using `spotipy` and `ytmusicapi`.
+A modern Python CLI tool that transfers tracks from a Spotify playlist to a YouTube Music playlist using `spotipy` and `ytmusicapi`.
 
 ## Features
 
-- Fetch tracks (title and artist) from a Spotify playlist  
-- Fetch tracks from a YouTube Music playlist  
-- Search Spotify tracks on YouTube Music  
-- Create playlists on YouTube Music  
-
-## Architecture
-
-This is an **executable-only project** - it's designed to be run directly as a command-line tool rather than installed as a Python package. The application is self-contained and can be:
-
-- Run directly with `python main.py`
-
-All code is in the `spotify2yt/` directory, and `main.py` serves as the entry point.
-
+- Fetch tracks from a Spotify playlist
+- Fetch tracks from a YouTube Music playlist
+- Search Spotify tracks on YouTube Music
+- Create playlists on YouTube Music
+- Transfer one or all Spotify playlists to YouTube Music
 
 ## Requirements
 
-- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- Python 3.11+
 - Spotify Developer App (Client ID and Secret)
 - YouTube Music authentication headers
 
-### Dependencies
+## Installation
 
-- typer  
-- spotipy  
-- ytmusicapi  
-- python-dotenv  
-- rich  
+```bash
+# Clone the repository
+git clone <repository-url>
+cd spotify-to-ytmusic
 
+# Create the virtual environment and install dependencies
+# (includes the dev tools: ruff, mypy, pytest)
+uv sync
+```
+
+The `uv sync` command reads `pyproject.toml` and installs the project plus all
+dependencies (including the `dev` group with ruff, mypy and pytest) into a
+local `.venv`. The lockfile `uv.lock` guarantees a reproducible environment.
 
 ## Configuration
 
 ### 1. Spotify Credentials
 
-1. Go to https://developer.spotify.com/dashboard and Create app.
+1. Go to https://developer.spotify.com/dashboard and create an app.
 2. Fill the fields to create the app.
-3. The field "Redirect URIs" put http://127.0.0.1:8888/callback.
+3. In "Redirect URIs" put `http://127.0.0.1:8888/callback`.
 
 Create a `.env` file in the project root:
 
@@ -54,153 +54,116 @@ SPOTIFY_REDIRECT_URI=http://localhost:8888/callback
 Run:
 
 ```
-ytmusicapi oauth
+uv run ytmusicapi oauth
 ```
 
-This will generate a file:
+This generates a `headers_auth.json` file containing your session headers.
 
-```
-headers_auth.json
-```
+> Note: if your auth file has a different name, point to it with the
+> `HEADERS_AUTH_PATH` environment variable in `.env`.
 
-This file contains your session headers used for authentication.
+### 2.1 YouTube Music Authentication Browser
 
-### 2.1  YouTube Music Authentication Browser
+This is the easiest method and is recommended for Firefox.
 
-This is the method I believe is the easiest to follow. This method is recommended for Firefox.
-
-1. Open your browser and go to → https://music.youtube.com/
+1. Open your browser and go to https://music.youtube.com/
 2. Open the Developer Tools and go to the Network tab.
-3. Filter the requests by searching for → https://music.youtube.com/youtubei/v1/
+3. Filter requests by searching for `https://music.youtube.com/youtubei/v1/`.
 4. Find a POST request and copy its request headers.
 
-After doing this, open your terminal and run:
+Then, in your terminal, run:
 
 ```
-ytmusicapi browser
+uv run ytmusicapi browser
 ```
 
-Paste the request, and it will generate a file:
+Paste the request; it generates a `browser.json` file with your session
+headers.
 
-```
-browser.json
-```
-
-This file contains your session headers. 
-
->Remember, this method will need to be repeated fairly often. I recommend running `python .\spotify2yt\conection_test.py` to test the `browser.json` file.
-
-
-
-## Installation & Setup
-
-### 1. Clone and Install Dependencies
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd spotify-to-ytmusic
-
-# Install Python dependencies
-pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-Copy `.env.example` to `.env` and fill in your credentials:
-
-```bash
-cp .env.example .env
-```
-
-Then edit `.env` with your Spotify and YouTube Music credentials.
-
-
+> Remember: this method needs to be repeated fairly often. Test the file with
+> `uv run spotify2yt ytmusic check`.
 
 ## Usage
 
-### Running the Application
-
-**Option 1: Direct Python (Cross-platform)**
-
 ```bash
-python main.py [command]
-```
+# Show the welcome screen
+uv run spotify2yt start
 
-**Option 2: Windows Batch Script**
-
-```bash
-run.bat [command]
-```
-
-**Option 3: Windows PowerShell**
-
-```bash
-./run.ps1 [command]
-```
-
-**Option 4: Unix/Linux/Mac Shell**
-
-```bash
-./run.sh [command]
-```
-
-**Option 5: Python Module**
-
-```bash
-python -m spotify2yt [command]
-```
-
-### Welcome Screen
-
-```bash
-python main.py start
+# Show the CLI help
+uv run spotify2yt --help
 ```
 
 ### Available Commands
 
-**Spotify Commands:**
-- `python main.py spotify playlists` - List your Spotify playlists
-- `python main.py spotify import <URL>` - Import tracks from a Spotify playlist
+**Spotify:**
+- `uv run spotify2yt spotify playlists` — List your Spotify playlists
+- `uv run spotify2yt spotify import <URL>` — Import tracks from a Spotify playlist
 
-**YouTube Music Commands:**
-- `python main.py ytmusic playlists` - List your YouTube Music playlists  
-- `python main.py ytmusic import <ID>` - Import tracks from a YouTube Music playlist
-- `python main.py ytmusic search` - Search for imported Spotify tracks on YouTube Music
-- `python main.py ytmusic create <NAME>` - Create a new YouTube Music playlist
+**YouTube Music:**
+- `uv run spotify2yt ytmusic playlists` — List your YouTube Music playlists
+- `uv run spotify2yt ytmusic import <ID>` — Import tracks from a YouTube Music playlist
+- `uv run spotify2yt ytmusic search` — Search for imported Spotify tracks on YouTube Music
+- `uv run spotify2yt ytmusic create <NAME>` — Create a new YouTube Music playlist
+- `uv run spotify2yt ytmusic check` — Test the YouTube Music connection
 
-**Transfer Commands:**
-- `python main.py transfer all` - Transfer all your Spotify playlists to YouTube Music
-- `python main.py transfer quick <URL>` - Quickly transfer a single Spotify playlist
+**Transfer:**
+- `uv run spotify2yt transfer all` — Transfer all your Spotify playlists to YouTube Music
+- `uv run spotify2yt transfer quick <URL>` — Quickly transfer a single Spotify playlist
 
-**Utility Commands:**
-- `python main.py clear-cache` - Clear all cached data
+**Utility:**
+- `uv run spotify2yt clear-cache` — Clear all cached data
 
+### Shortcut Scripts
+
+Convenience runners are included for each platform (all delegate to `uv run`):
+
+| Script      | Platform        |
+| ----------- | --------------- |
+| `run.sh`    | Unix / Linux / Mac |
+| `run.bat`   | Windows Batch   |
+| `run.ps1`   | PowerShell      |
+
+For example: `./run.sh transfer quick <URL>`.
+
+## Development
+
+The project follows modern Python practices: `src` layout, strict type
+checking, linting and formatting with Ruff, and pytest for testing.
+
+```bash
+# Lint and format
+uv run ruff check .
+uv run ruff format .
+
+# Type check
+uv run mypy src
+
+# Run tests
+uv run pytest
+```
 
 ## Project Structure
 
 ```
 spotify-to-ytmusic/
-├── main.py                 (Executable entry point)
-├── spotify2yt/             (Application code)
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── cli.py
-│   ├── cache.py
-│   ├── spotify_client.py
-│   ├── ytmusic_client.py
-│   └── conection_test.py
-├── .env.example            (Configuration template)
-├── .env                    (Configuration - not tracked)
-├── pyproject.toml          (Dependencies)
-├── requirements.txt        (Dependencies)
+├── src/spotify2yt/          (Application code)
+│   ├── __init__.py          (Package metadata/version)
+│   ├── __main__.py          (python -m spotify2yt entry point)
+│   ├── cli.py               (Typer CLI)
+│   ├── cache.py             (File-backed session cache)
+│   ├── config.py            (Environment settings)
+│   ├── logging.py           (Logging setup)
+│   ├── models.py            (Track/Playlist dataclasses)
+│   ├── spotify_client.py    (Spotify API client)
+│   ├── transfer.py          (Transfer orchestration)
+│   └── ytmusic_client.py    (YouTube Music client)
+├── tests/                   (pytest suite)
+├── .env.example             (Configuration template)
+├── .python-version          (Pinned Python version for uv)
+├── pyproject.toml           (Dependencies + tooling config)
+├── uv.lock                  (Locked dependency tree)
 └── README.md
 ```
-
-## Contributing
-
-Pull requests are welcome.
-
 
 ## License
 

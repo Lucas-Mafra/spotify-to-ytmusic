@@ -43,6 +43,9 @@ headers_auth.json
 # --- Bytecode cache ---
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # --- YTMusic / Spotipy auth ---
 oauth.json
