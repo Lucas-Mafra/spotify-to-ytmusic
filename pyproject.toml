@@ -4,13 +4,13 @@ version = "2.0"
 description = "CLI tool to migrate playlists between Spotify and YouTube Music"
 requires-python = ">=3.10"
 dependencies = [
-    "typer",
-    "spotipy",
-    "ytmusicapi",
-    "python-dotenv",
-    "rich"
+    "python-dotenv==1.2.1",
+    "rich==14.2.0",
+    "spotipy==2.25.1",
+    "tqdm==4.67.1",
+    "typer==0.20.0",
+    "ytmusicapi==1.11.1",
 ]
 
-[build-system]
-requires = []
-build-backend = "setuptools.build_meta"
+[tool.uv]
+package = false
