@@ -1,223 +1,394 @@
+"""Command-line interface for spotify2yt."""
+
+from __future__ import annotations
+
 import logging
 import os
 import sys
 
 import typer
-from rich import print
+from pyfiglet import Figlet
+from rich import box
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
 
+from . import __version__, browser_auth
 from . import ytmusic_client as ytm
-from .spotify_client import (
-    get_spotify_playlists,
-    get_spotify_tracks,
-    select_spotify_playlist,
-)
-
-app = typer.Typer()
-spotify_app = typer.Typer(help="Spotify-related commands")
-ytmusic_app = typer.Typer(help="YouTube Music-related commands")
-transfer_app = typer.Typer(help="Transfer playlists between services")
-
-app.add_typer(spotify_app, name="spotify")
-app.add_typer(ytmusic_app, name="ytmusic")
-app.add_typer(transfer_app, name="transfer")
-
 from .cache import Cache
+from .spotify_client import get_spotify_playlists, get_spotify_tracks
+from .transfer import transfer_spotify_playlist
 
-# one shared cache instance used by all commands.  Using a class
-# rather than module-level globals makes it easier to bundle the app and
-# also makes testing simpler.
+console = Console()
 cache = Cache()
 
+_PRIVACY_CHOICES = ("PRIVATE", "PUBLIC", "UNLISTED")
 
-# START COMMAND
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
+
+def _banner() -> str:
+    """Render the ASCII art logo used on the welcome screen."""
+    return Figlet(font="standard").renderText("spotify2yt").rstrip()
+
+
+def _print_playlists(playlists: list[dict[str, str]], *, identifier: str) -> None:
+    """Render a playlist list as a table with an index column."""
+    if not playlists:
+        console.print("[yellow]No playlists found.[/yellow]")
+        return
+
+    table = Table(box=box.ROUNDED, header_style="bold cyan")
+    table.add_column("#", justify="right", style="dim", no_wrap=True)
+    table.add_column("Name", style="bold")
+    table.add_column(identifier.upper(), style="dim", overflow="fold")
+
+    for index, playlist in enumerate(playlists, start=1):
+        table.add_row(str(index), playlist["name"], playlist[identifier])
+
+    console.print(table)
+
+
+def _pick_playlist(playlists: list[dict[str, str]], *, identifier: str) -> str | None:
+    """Show playlists and return the identifier of the playlist the user picks."""
+    _print_playlists(playlists, identifier=identifier)
+    if not playlists:
+        return None
+
+    if len(playlists) == 1:
+        return playlists[0][identifier]
+
+    choice = Prompt.ask(
+        "[bold cyan]Select a playlist[/bold cyan]",
+        choices=[str(i) for i in range(1, len(playlists) + 1)],
+        show_choices=False,
+    )
+    return playlists[int(choice) - 1][identifier]
+
+
+def _check_privacy(privacy: str) -> str:
+    """Normalize and validate the playlist privacy setting."""
+    privacy = privacy.upper()
+    if privacy not in _PRIVACY_CHOICES:
+        console.print(
+            f"[red]Privacy must be one of: {', '.join(_PRIVACY_CHOICES)}.[/red]"
+        )
+        raise typer.Exit(code=1)
+    return privacy
+
+
+app = typer.Typer(
+    name="spotify2yt",
+    help="[bold]Migrate playlists between Spotify and YouTube Music.[/bold]",
+    add_completion=False,
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+    pretty_exceptions_show_locals=False,
+)
+
+spotify_app = typer.Typer(
+    name="spotify",
+    help="Work with your Spotify playlists.",
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
+ytmusic_app = typer.Typer(
+    name="ytmusic",
+    help="Work with your YouTube Music playlists.",
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
+transfer_app = typer.Typer(
+    name="transfer",
+    help="Transfer playlists from Spotify to YouTube Music.",
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
+cache_app = typer.Typer(
+    name="cache",
+    help="Manage the local cache.",
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
+app.add_typer(spotify_app)
+app.add_typer(ytmusic_app)
+app.add_typer(transfer_app)
+app.add_typer(cache_app)
+
+
+# GLOBAL COMMANDS
+
+
 @app.command()
-def start():
-    os.system("cls" if os.name == "nt" else "clear")
-    print("""[bold cyan]
-           Welcome!
-           For Ytmusic playlists, you only need the playlist ID (https://music.youtube.com/playlist?list={ID}),
-           and for Spotify, the full link works (https://open.spotify.com/...).
-           [/bold cyan]
-           [bold yellow]
-           Available Commands:
-           
-           Spotify:
-                - spotify playlists          (get Spotify playlists)
-                - spotify import URL         (import playlist from Spotify)
-           
-           YouTube Music:
-                - ytmusic playlists          (get YouTube Music playlists)
-                - ytmusic import ID          (import playlist from YouTube Music)
-                - ytmusic search             (search songs on YouTube Music)
-                - ytmusic create NAME        (create playlist on YouTube Music)
-           
-           Transfer:
-                - transfer all               (transfer all Spotify playlists)
-                - transfer quick URL         (transfer single Spotify playlist)
-           
-           Utility:
-                - clear-cache                (clear all cached data)
-           [/bold yellow]
-           """)
+def start() -> None:
+    """Show the welcome screen with the available commands."""
+    console.print(_banner(), style="bold cyan")
+    console.print("[bold]Welcome to [cyan]spotify2yt[/cyan]![/bold]\n")
+    console.print("Run [bold]spotify2yt --help[/bold] to see all commands.\n")
+
+    table = Table(box=box.ROUNDED, header_style="bold cyan")
+    table.add_column("Command", style="bold")
+    table.add_column("Description")
+    table.add_row("spotify", "Work with your Spotify playlists")
+    table.add_row("ytmusic", "Work with your YouTube Music playlists")
+    table.add_row("transfer", "Transfer playlists from Spotify to YouTube Music")
+    table.add_row("cache", "Manage the local cache")
+    table.add_row("version", "Show the version of spotify2yt")
+    console.print(table)
+
+
+@app.command()
+def version() -> None:
+    """Show the version of spotify2yt."""
+    console.print(f"[bold cyan]spotify2yt[/bold cyan] [dim]v{__version__}[/dim]")
 
 
 # SPOTIFY COMMANDS
+
+
 @spotify_app.command("playlists")
-def import_user_playlist_spotify():
-    playlists = get_spotify_playlists()
-
-    if not playlists:
-        print("No playlists found.")
-        return
-
-    for p in playlists:
-        print(f"{p['name']} - {p['link']}")
+def spotify_playlists() -> None:
+    """List your Spotify playlists."""
+    with console.status("[bold cyan]Fetching Spotify playlists...[/bold cyan]"):
+        playlists = get_spotify_playlists()
+    _print_playlists(playlists, identifier="link")
 
 
 @spotify_app.command("import")
-def import_spotify(url: str):
-    """Fetch songs from a Spotify playlist and persist them in the cache."""
-    print("[bold cyan]Fetching Spotify playlist...[/bold cyan]")
-    try:
-        cache.spotify_tracks = get_spotify_tracks(url)
-        cache.save()
-        print(
-            f"[green]Imported {len(cache.spotify_tracks)} tracks from Spotify.[/green]"
-        )
+def spotify_import(
+    url: str | None = typer.Argument(None, help="Spotify playlist URL."),
+) -> None:
+    """Fetch the tracks of a Spotify playlist into the local cache.
 
-    except Exception as e:
-        logging.exception("Error catching Spotify playlist musics.")
-        return f"Failed to get playlist music: {e}"
+    If no URL is given, you can pick one of your playlists interactively.
+    """
+    if url is None:
+        with console.status("[bold cyan]Fetching Spotify playlists...[/bold cyan]"):
+            playlists = get_spotify_playlists()
+        url = _pick_playlist(playlists, identifier="link")
+        if url is None:
+            raise typer.Exit(code=1)
+
+    with console.status("[bold cyan]Fetching Spotify playlist...[/bold cyan]"):
+        tracks = get_spotify_tracks(url)
+
+    cache.spotify_tracks = tracks
+    cache.save()
+    console.print(
+        f"[green]Imported [bold]{len(tracks)}[/bold] tracks from Spotify.[/green]"
+    )
 
 
 # YOUTUBE MUSIC COMMANDS
+
+
 @ytmusic_app.command("playlists")
-def import_user_playlist_ytmusic():
-    playlists = ytm.get_ytmusic_playlists()
-
-    if not playlists:
-        print("No playlists found.")
-        return
-
-    for p in playlists:
-        print(f"{p['name']} - {p['id']}")
+def ytmusic_playlists() -> None:
+    """List your YouTube Music playlists."""
+    with console.status("[bold cyan]Fetching YouTube Music playlists...[/bold cyan]"):
+        playlists = ytm.get_ytmusic_playlists()
+    _print_playlists(playlists, identifier="id")
 
 
 @ytmusic_app.command("import")
-def import_ytmusic(id: str):
-    print("[bold cyan]Fetching Youtube Music playlist...[/bold cyan]")
-    try:
-        cache.ytmusic_tracks = ytm.get_ytmusic_playlist_tracks(id)
-        cache.save()
-        print(
-            f"[green]Imported {len(cache.ytmusic_tracks)} tracks from YouTube Music.[/green]"
-        )
+def ytmusic_import(
+    playlist_id: str | None = typer.Argument(None, help="YouTube Music playlist ID."),
+) -> None:
+    """Fetch the tracks of a YouTube Music playlist into the local cache.
 
-    except Exception as e:
-        logging.exception("Error catching Spotify playlist musics.")
-        return f"Failed to get playlist music: {e}"
+    If no ID is given, you can pick one of your playlists interactively.
+    """
+    if playlist_id is None:
+        with console.status(
+            "[bold cyan]Fetching YouTube Music playlists...[/bold cyan]"
+        ):
+            playlists = ytm.get_ytmusic_playlists()
+        playlist_id = _pick_playlist(playlists, identifier="id")
+        if playlist_id is None:
+            raise typer.Exit(code=1)
+
+    with console.status("[bold cyan]Fetching YouTube Music playlist...[/bold cyan]"):
+        tracks = ytm.get_ytmusic_playlist_tracks(playlist_id)
+
+    cache.ytmusic_tracks = tracks
+    cache.save()
+    console.print(
+        f"[green]Imported [bold]{len(tracks)}[/bold] tracks from YouTube Music.[/green]"
+    )
 
 
 @ytmusic_app.command("search")
-def get_idsongs_ytmusic():
+def ytmusic_search() -> None:
+    """Search the imported Spotify tracks on YouTube Music and store their IDs."""
     if not cache.spotify_tracks:
-        print("[red]You need to import a playlist first: use 'spotify import'.[/red]")
-        return
+        console.print(
+            "[red]No Spotify tracks in cache. "
+            "Run [bold]spotify import[/bold] first.[/red]"
+        )
+        raise typer.Exit(code=1)
 
-    print("[cyan]Searching for IDs on YouTube Music...[/cyan]")
-    cache.ytmusic_songsid = ytm.search_songs_ytmusic(cache.spotify_tracks)
+    console.print("[cyan]Searching for tracks on YouTube Music...[/cyan]")
+    cache.ytmusic_songsid = [
+        song_id
+        for song_id in ytm.search_songs_ytmusic(cache.spotify_tracks)
+        if song_id is not None
+    ]
     cache.save()
+    console.print(
+        f"[green]Found [bold]{len(cache.ytmusic_songsid)}[/bold] "
+        f"of {len(cache.spotify_tracks)} tracks.[/green]"
+    )
 
-    print("[green]Number of tracks found:[/green]")
-    print(len(cache.ytmusic_songsid))
+
+@ytmusic_app.command("auto-auth")
+def ytmusic_auto_auth(
+    browser: str = typer.Option(
+        None,
+        "--browser",
+        "-b",
+        help="Browser to read cookies from (firefox, chrome, chromium, brave, "
+        "edge, opera). Omit to try every supported browser.",
+    ),
+) -> None:
+    """Authenticate by reading YouTube Music cookies from your browser.
+
+    Creates a validated browser.json without any manual header copying.
+    Close the browser first so its cookie database is accessible.
+    """
+    with console.status("[bold cyan]Extracting cookies from browser...[/bold cyan]"):
+        try:
+            auth_file = browser_auth.auto_authenticate(browser)
+        except Exception as exc:  # noqa: BLE001 - report any extraction failure cleanly
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1) from None
+
+    console.print(
+        f"[green]Authenticated successfully! "
+        f"Auth file saved to [bold]{auth_file}[/bold].[/green]"
+    )
 
 
 @ytmusic_app.command("create")
-def create_playlist_ytmusic(
-    playlist_name: str = typer.Argument(...),
+def ytmusic_create(
+    name: str = typer.Argument(..., help="Name of the new playlist."),
     privacy: str = typer.Option(
-        "PRIVATE", help="Playlist privacy: PRIVATE, PUBLIC, UNLISTED"
+        "PRIVATE",
+        "--privacy",
+        "-p",
+        help="Playlist privacy: PRIVATE, PUBLIC or UNLISTED.",
     ),
-):
+) -> None:
+    """Create a playlist on YouTube Music from the cached song IDs."""
     if not cache.ytmusic_songsid:
-        print("[red]No song IDs in cache. Run 'ytmusic search' first.[/red]")
-        return
+        console.print(
+            "[red]No song IDs in cache. Run [bold]ytmusic search[/bold] first.[/red]"
+        )
+        raise typer.Exit(code=1)
 
-    if privacy not in ("PRIVATE", "PUBLIC", "UNLISTED"):
-        print("[red]The privacy parameter must be PRIVATE, PUBLIC, or UNLISTED.[/red]")
-        return
+    privacy = _check_privacy(privacy)
 
-    print("[cyan]Creating YouTube Music playlist...[/cyan]")
-    result = ytm.create_ytmusic_playlist(playlist_name, privacy, cache.ytmusic_songsid)
+    with console.status("[bold cyan]Creating playlist...[/bold cyan]"):
+        result = ytm.create_ytmusic_playlist(name, privacy, cache.ytmusic_songsid)
 
-    print(f"[green]{result}[/green]")
+    console.print(f"[green]{result}[/green]")
 
 
 # TRANSFER COMMANDS
+
+
 @transfer_app.command("all")
-def transfer_all_playlist():
-    # use cache.clear() rather than the previous function so state is
-    # reset consistently and saved.
-    cache.clear()
+def transfer_all(
+    privacy: str = typer.Option(
+        "PRIVATE",
+        "--privacy",
+        "-p",
+        help="Playlist privacy: PRIVATE, PUBLIC or UNLISTED.",
+    ),
+) -> None:
+    """Transfer all your Spotify playlists to YouTube Music."""
+    privacy = _check_privacy(privacy)
 
-    playlists = get_spotify_playlists()
+    with console.status("[bold cyan]Fetching Spotify playlists...[/bold cyan]"):
+        playlists = get_spotify_playlists()
 
-    try:
-        for p in playlists:
-            os.system("cls" if os.name == "nt" else "clear")
+    if not playlists:
+        console.print("[yellow]No Spotify playlists found.[/yellow]")
+        raise typer.Exit(code=1)
 
-            name_playlist = p["name"]
-            playlist_link = p["link"]
+    for playlist in playlists:
+        console.rule(f"[bold cyan]{playlist['name']}[/bold cyan]")
+        result = transfer_spotify_playlist(
+            cache,
+            playlist["link"],
+            name=playlist["name"],
+            privacy=privacy,
+        )
+        console.print(f"[green]{result}[/green]")
 
-            print(f"[bold cyan]Transferring {name_playlist} playlist...[/bold cyan]")
-
-            import_spotify(playlist_link)
-            get_idsongs_ytmusic()
-            create_playlist_ytmusic(name_playlist, privacy="PRIVATE")
-
-        print(f"[green]Transfer sucessed![/green]")
-
-    except Exception as e:
-        logging.exception("Error transferring Spotify playlist to YouTube Music.")
-        return f"Failed to trasnfer playlists: {e}"
+    console.print("[bold green]Transfer complete![/bold green]")
 
 
 @transfer_app.command("quick")
-def fast_playlist_transfer(url: str):
-    playlist_name = select_spotify_playlist(url)
+def transfer_quick(
+    url: str = typer.Argument(..., help="Spotify playlist URL."),
+    privacy: str = typer.Option(
+        "PRIVATE",
+        "--privacy",
+        "-p",
+        help="Playlist privacy: PRIVATE, PUBLIC or UNLISTED.",
+    ),
+) -> None:
+    """Transfer a single Spotify playlist to YouTube Music."""
+    privacy = _check_privacy(privacy)
+
+    console.rule("[bold cyan]Transferring playlist[/bold cyan]")
+    result = transfer_spotify_playlist(cache, url, privacy=privacy)
+    console.print(f"[green]{result}[/green]")
+
+
+# CACHE COMMANDS
+
+
+@cache_app.command("show")
+def cache_show() -> None:
+    """Show what is currently stored in the cache."""
+    table = Table(box=box.ROUNDED, header_style="bold cyan")
+    table.add_column("Key", style="bold")
+    table.add_column("Count", justify="right")
+    table.add_row("Spotify tracks", str(len(cache.spotify_tracks)))
+    table.add_row("YouTube Music tracks", str(len(cache.ytmusic_tracks)))
+    table.add_row("YouTube Music song IDs", str(len(cache.ytmusic_songsid)))
+    console.print(table)
+
+
+@cache_app.command("clear")
+def cache_clear() -> None:
+    """Delete all cached data."""
+    cache.clear()
+    console.print("[green]Cache cleared.[/green]")
+
+
+def main() -> None:
+    """Entry point used by the console script and ``python -m spotify2yt``.
+
+    When the project is frozen to a standalone executable with PyInstaller the
+    data files are unpacked into ``sys._MEIPASS``, so we switch to that
+    directory before running the app to keep relative paths working.
+    """
+    if getattr(sys, "frozen", False):
+        os.chdir(sys._MEIPASS)  # type: ignore[attr-defined]  # only set by PyInstaller
 
     try:
-        import_spotify(url)
-        get_idsongs_ytmusic()
-        create_playlist_ytmusic(playlist_name, privacy="PRIVATE")
-
-    except Exception as e:
-        logging.exception("Error creating Youtube Music playlist.")
-        return f"Failed creating playlist: {e}"
-
-
-# UTILITY COMMANDS
-@app.command("clear-cache")
-def clear_cache():
-    cache.clear()
-    print("[green]Cache cleared![/green]")
-
-
-def main():
-    """Entry point used by console script or ``python -m spotify2yt``.
-
-    When the project is frozen to a Windows executable with PyInstaller the
-    cache file and data files will be located relative to ``sys._MEIPASS``
-    so we adjust the current working directory if necessary before running
-    the Typer app.
-    """
-
-    # on Windows builds PyInstaller extracts into a temporary folder; change
-    # to that directory so relative paths continue to work.
-    if getattr(sys, "frozen", False):
-        os.chdir(sys._MEIPASS)
-
-    app()
+        app()
+    except typer.Exit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - surface a clean error instead of a traceback
+        console.print(f"[red]Error: {exc}[/red]")
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":
