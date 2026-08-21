@@ -83,6 +83,21 @@ headers.
 > Remember: this method needs to be repeated fairly often. Test the file with
 > `uv run spotify2yt ytmusic check`.
 
+### 2.2 Automatic Authentication (recommended)
+
+Instead of copying headers manually, let the tool read the cookies straight
+from your browser:
+
+```
+uv run spotify2yt ytmusic auto-auth
+# or target a specific browser:
+uv run spotify2yt ytmusic auto-auth --browser firefox
+```
+
+Sign in to https://music.youtube.com in the browser first, and close the
+browser so its cookie database is accessible. The command validates the
+session before writing `browser.json`.
+
 ## Usage
 
 ```bash
@@ -105,6 +120,7 @@ uv run spotify2yt --help
 - `uv run spotify2yt ytmusic search` — Search for imported Spotify tracks on YouTube Music
 - `uv run spotify2yt ytmusic create <NAME>` — Create a new YouTube Music playlist
 - `uv run spotify2yt ytmusic check` — Test the YouTube Music connection
+- `uv run spotify2yt ytmusic auto-auth` — Authenticate via browser cookies
 
 **Transfer:**
 - `uv run spotify2yt transfer all` — Transfer all your Spotify playlists to YouTube Music

@@ -8,6 +8,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from . import browser_auth
 from .cache import Cache
 from .config import Settings
 from .logging import configure_logging
@@ -77,6 +78,7 @@ def start() -> None:
             - ytmusic search         (search songs on YouTube Music)
             - ytmusic create NAME    (create playlist on YouTube Music)
             - ytmusic check          (test the YouTube Music connection)
+            - ytmusic auto-auth      (authenticate via browser cookies)
 
         Transfer:
             - transfer all           (transfer all Spotify playlists)
@@ -84,7 +86,7 @@ def start() -> None:
 
         Utility:
             - clear-cache            (clear all cached data)
-        [/bold yellow]
+        [/bold cyan]
         """
     )
 
@@ -167,6 +169,32 @@ def ytmusic_check() -> None:
     """Test the YouTube Music connection using the configured auth file."""
     info = _service().ytmusic.account_info()
     console.print(info)
+
+
+@ytmusic_app.command("auto-auth")
+def ytmusic_auto_auth(
+    browser: Annotated[
+        str,
+        typer.Option(
+            "--browser",
+            "-b",
+            help="Browser to read cookies from (firefox, chrome, chromium, brave, "
+            "edge, opera). Omit to try every supported browser.",
+        ),
+    ] = "",
+) -> None:
+    """Authenticate by reading YouTube Music cookies from your browser.
+
+    Creates a validated browser.json without any manual header copying.
+    Close the browser first so its cookie database is accessible.
+    """
+    try:
+        auth_file = browser_auth.auto_authenticate(browser or None)
+    except Exception as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    console.print(f"[green]Authenticated successfully! Auth file: {auth_file}[/green]")
 
 
 # --- Transfer commands ---

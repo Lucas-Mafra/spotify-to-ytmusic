@@ -27,7 +27,7 @@ class TransferService:
     def import_spotify(self, playlist_url: str) -> int:
         """Fetch a Spotify playlist into the cache and return the track count."""
         tracks = self.spotify.get_tracks(playlist_url)
-        self.cache.spotify_tracks = [t.query for t in tracks]
+        self.cache.spotify_tracks = list(tracks)
         self.cache.save()
         logger.info("Imported %d tracks from Spotify.", len(tracks))
         return len(tracks)
