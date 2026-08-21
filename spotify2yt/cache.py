@@ -1,6 +1,7 @@
 import json
 import os
-from typing import List
+
+from .matching import Track
 
 CACHE_FILE = "cache.json"
 
@@ -15,25 +16,29 @@ class Cache:
     """
 
     def __init__(self) -> None:
-        self.spotify_tracks: List[str] = []
-        self.ytmusic_tracks: List[str] = []
-        self.ytmusic_songsid: List[str] = []
+        self.spotify_tracks: list[Track] = []
+        self.ytmusic_tracks: list[str] = []
+        self.ytmusic_songsid: list[str] = []
         self.load()
 
     def load(self) -> None:
         if not os.path.exists(CACHE_FILE):
             return
 
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        with open(CACHE_FILE, encoding="utf-8") as f:
             data = json.load(f)
 
-        self.spotify_tracks = data.get("spotify_tracks_cache", [])
+        raw_tracks = data.get("spotify_tracks_cache", [])
+        # Tolerate caches written by older versions that stored plain strings.
+        self.spotify_tracks = [
+            Track.from_dict(track) for track in raw_tracks if isinstance(track, dict)
+        ]
         self.ytmusic_tracks = data.get("ytmusic_tracks_cache", [])
         self.ytmusic_songsid = data.get("ytmusic_songsid_cache", [])
 
     def save(self) -> None:
         data = {
-            "spotify_tracks_cache": self.spotify_tracks,
+            "spotify_tracks_cache": [track.to_dict() for track in self.spotify_tracks],
             "ytmusic_tracks_cache": self.ytmusic_tracks,
             "ytmusic_songsid_cache": self.ytmusic_songsid,
         }
