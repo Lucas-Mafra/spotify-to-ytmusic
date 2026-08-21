@@ -75,17 +75,22 @@ class SpotifyClient:
         tracks: list[Track] = []
         for item in items:
             track = item.get("track")
-            if not track:
+            if not track or not track.get("name"):
                 continue
 
-            artists = track.get("artists", [])
+            artists = tuple(
+                artist["name"] for artist in track.get("artists", []) if artist.get("name")
+            )
             if not artists:
                 continue
 
             tracks.append(
                 Track(
-                    artist=artists[0]["name"],
+                    artist=artists[0],
                     title=track["name"],
+                    artists=artists,
+                    album=(track.get("album") or {}).get("name", ""),
+                    duration_ms=track.get("duration_ms"),
                 )
             )
 
