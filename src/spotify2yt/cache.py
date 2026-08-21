@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .models import Track
+
 CACHE_FILE = Path("cache.json")
 
 _SECTION_SPOTIFY = "spotify_tracks_cache"
@@ -18,7 +20,7 @@ class Cache:
     """File-backed storage for the current import/transfer session."""
 
     path: Path = CACHE_FILE
-    spotify_tracks: list[str] = field(default_factory=list)
+    spotify_tracks: list[Track] = field(default_factory=list)
     ytmusic_tracks: list[str] = field(default_factory=list)
     ytmusic_songsid: list[str] = field(default_factory=list)
 
@@ -31,14 +33,18 @@ class Cache:
             return
 
         data = json.loads(self.path.read_text(encoding="utf-8"))
-        self.spotify_tracks = list(data.get(_SECTION_SPOTIFY, []))
+        raw_tracks = data.get(_SECTION_SPOTIFY, [])
+        # Tolerate caches written by older versions that stored plain strings.
+        self.spotify_tracks = [
+            Track.from_dict(track) for track in raw_tracks if isinstance(track, dict)
+        ]
         self.ytmusic_tracks = list(data.get(_SECTION_YT_TRACKS, []))
         self.ytmusic_songsid = list(data.get(_SECTION_YT_IDS, []))
 
     def save(self) -> None:
         """Persist the current state to disk."""
         data = {
-            _SECTION_SPOTIFY: self.spotify_tracks,
+            _SECTION_SPOTIFY: [track.to_dict() for track in self.spotify_tracks],
             _SECTION_YT_TRACKS: self.ytmusic_tracks,
             _SECTION_YT_IDS: self.ytmusic_songsid,
         }

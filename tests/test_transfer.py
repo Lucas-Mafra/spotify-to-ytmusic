@@ -1,76 +1,92 @@
 """Tests for the transfer orchestration."""
 
+from pathlib import Path
+
 import pytest
 
-from spotify2yt import transfer as transfer_module
 from spotify2yt.cache import Cache
-from spotify2yt.matching import Track
+from spotify2yt.models import Playlist, Track
+from spotify2yt.transfer import TransferService
 
 
-@pytest.fixture
-def cache(tmp_path, monkeypatch):
-    from spotify2yt import cache as cache_module
+class FakeSpotify:
+    def get_tracks(self, playlist_url: str) -> list[Track]:
+        return [Track(artist="Artist", title="Song", duration_ms=1_000)]
 
-    monkeypatch.setattr(cache_module, "CACHE_FILE", str(tmp_path / "cache.json"))
-    return Cache()
+    def get_playlist_name(self, playlist_url: str) -> str:
+        return "Fetched Name"
+
+    def get_playlists(self) -> list[Playlist]:
+        return [Playlist(name="Fetched Name", link="url")]
 
 
-@pytest.fixture
-def mocks(monkeypatch):
-    calls = {"cleared": 0, "created": []}
+class FakeYTMusic:
+    def __init__(self) -> None:
+        self.searched_with: list[Track] = []
+        self.created: list[tuple[str, list[str], str]] = []
 
-    monkeypatch.setattr(
-        transfer_module,
-        "get_spotify_tracks",
-        lambda url: [Track(title="Song", artists=("Artist",))],
-    )
-    monkeypatch.setattr(
-        transfer_module, "select_spotify_playlist", lambda url: "Fetched Name"
-    )
-    monkeypatch.setattr(
-        transfer_module.ytm,
-        "search_songs_ytmusic",
-        lambda tracks: ["id1", None],
-    )
+    def search_video_ids(self, tracks: list[Track]) -> list[str]:
+        self.searched_with = list(tracks)
+        return ["id1"]
 
-    def fake_create(name, privacy, song_ids):
-        calls["created"].append((name, privacy, list(song_ids)))
+    def create_playlist(self, name: str, video_ids: list[str], privacy: str) -> str:
+        self.created.append((name, video_ids, privacy))
         return f"Playlist '{name}' was created!"
 
-    monkeypatch.setattr(transfer_module.ytm, "create_ytmusic_playlist", fake_create)
 
-    original_clear = Cache.clear
+@pytest.fixture
+def service(tmp_path: Path) -> tuple[TransferService, Cache, FakeYTMusic]:
+    cache = Cache(path=tmp_path / "cache.json")
+    ytmusic = FakeYTMusic()
+    service = TransferService(
+        spotify=FakeSpotify(),  # type: ignore[arg-type]
+        ytmusic=ytmusic,  # type: ignore[arg-type]
+        cache=cache,
+    )
+    return service, cache, ytmusic
 
-    def counting_clear(self):
-        calls["cleared"] += 1
-        original_clear(self)
 
-    monkeypatch.setattr(Cache, "clear", counting_clear)
-    return calls
+class TestTransferSingle:
+    def test_full_flow_uses_fetched_name_by_default(
+        self, service: tuple[TransferService, Cache, FakeYTMusic]
+    ) -> None:
+        svc, _, ytmusic = service
 
-
-class TestTransferSpotifyPlaylist:
-    def test_full_flow_uses_fetched_name_by_default(self, cache, mocks):
-        result = transfer_module.transfer_spotify_playlist(cache, "url")
+        result = svc.transfer_single("url")
 
         assert result == "Playlist 'Fetched Name' was created!"
-        assert mocks["created"] == [("Fetched Name", "PRIVATE", ["id1"])]
+        assert ytmusic.created == [("Fetched Name", ["id1"], "PRIVATE")]
 
-    def test_explicit_name_and_privacy_win(self, cache, mocks):
-        transfer_module.transfer_spotify_playlist(
-            cache, "url", name="Given", privacy="PUBLIC"
-        )
-        assert mocks["created"] == [("Given", "PUBLIC", ["id1"])]
+    def test_unmatched_tracks_are_dropped(
+        self, service: tuple[TransferService, Cache, FakeYTMusic]
+    ) -> None:
+        svc, cache, _ = service
 
-    def test_unmatched_tracks_are_dropped(self, cache, mocks):
-        transfer_module.transfer_spotify_playlist(cache, "url")
+        svc.transfer_single("url")
+
         assert cache.ytmusic_songsid == ["id1"]
 
-    def test_cache_is_cleared_before_import(self, cache, mocks):
+    def test_cache_is_cleared_before_import(
+        self, service: tuple[TransferService, Cache, FakeYTMusic]
+    ) -> None:
+        svc, cache, ytmusic = service
+        stale = Track(artist="Old", title="Stale")
+        cache.spotify_tracks = [stale]
         cache.ytmusic_songsid = ["stale-id"]
-        cache.spotify_tracks = [Track(title="Old")]
 
-        transfer_module.transfer_spotify_playlist(cache, "url")
+        svc.transfer_single("url")
 
-        assert mocks["cleared"] >= 1
-        assert [track.title for track in cache.spotify_tracks] == ["Song"]
+        assert ytmusic.searched_with and all(t.title != "Stale" for t in ytmusic.searched_with)
+        assert [t.title for t in cache.spotify_tracks] == ["Song"]
+
+
+class TestTransferAll:
+    def test_transfers_every_playlist(
+        self, service: tuple[TransferService, Cache, FakeYTMusic]
+    ) -> None:
+        svc, _, ytmusic = service
+
+        count = svc.transfer_all()
+
+        assert count == 1
+        assert len(ytmusic.created) == 1

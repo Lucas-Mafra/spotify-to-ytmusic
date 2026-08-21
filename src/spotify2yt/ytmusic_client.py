@@ -3,15 +3,26 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from rich.progress import Progress
 from ytmusicapi import YTMusic
 
 from .config import Settings
+from .matching import SONG_MATCH_THRESHOLD, VIDEO_MATCH_THRESHOLD, score_match
 from .models import Playlist, Track
 
 logger = logging.getLogger(__name__)
+
+# Search stages: official songs are preferred; videos are a fallback for
+# tracks that only exist as uploads (but demand a stricter score).
+_SearchFilter = Literal["songs", "videos"]
+_SEARCH_STAGES: tuple[tuple[_SearchFilter, float], ...] = (
+    ("songs", SONG_MATCH_THRESHOLD),
+    ("videos", VIDEO_MATCH_THRESHOLD),
+)
+
+_CANDIDATES_PER_SEARCH = 5
 
 
 class YouTubeMusicClient:
@@ -68,36 +79,99 @@ class YouTubeMusicClient:
         playlist: dict[str, Any] = self.client.get_playlist(playlist_id)
         return str(playlist.get("title", "Unknown Playlist"))
 
-    def search_video_ids(self, queries: list[str]) -> list[str]:
-        """Resolve a YouTube Music video ID for every search query.
+    def search_video_ids(self, tracks: list[Track]) -> list[str]:
+        """Resolve a YouTube Music video ID for every Spotify track.
 
-        Queries that cannot be matched are skipped and reported as warnings.
+        Tracks that cannot be matched are skipped and reported as warnings.
         """
         found: list[str] = []
         with Progress() as progress:
-            task = progress.add_task("Searching songs on YouTube Music", total=len(queries))
-            for query in queries:
-                video_id = self._search_video_id(query)
+            task = progress.add_task("Searching songs on YouTube Music", total=len(tracks))
+            for track in tracks:
+                video_id = self._match_track(track)
                 if video_id is not None:
                     found.append(video_id)
                 progress.advance(task)
 
         logger.info(
-            "Completed search for %d queries (%d found).",
-            len(queries),
+            "Completed search for %d tracks (%d found).",
+            len(tracks),
             len(found),
         )
         return found
 
-    def _search_video_id(self, query: str) -> str | None:
-        """Return the first matching video ID for a single track query."""
-        for item in self.client.search(query):
-            video_id = item.get("videoId")
-            if video_id:
-                return str(video_id)
+    def _match_track(self, track: Track) -> str | None:
+        """Search YouTube Music for a track and return the best matching video ID.
 
-        logger.warning("No video ID found for song: %s", query)
+        Each stage searches a result category and only accepts a candidate
+        whose score clears that stage's threshold. Songs are tried first;
+        videos act as a stricter fallback so covers and live takes are avoided.
+        """
+        fallback: tuple[str, float] | None = None
+
+        for search_filter, threshold in _SEARCH_STAGES:
+            try:
+                results = self.client.search(
+                    track.query, filter=search_filter, limit=_CANDIDATES_PER_SEARCH
+                )
+            except Exception:
+                logger.warning("Search failed for '%s'.", track.query, exc_info=True)
+                continue
+
+            video_id, score = self._best_candidate(track, results)
+            if video_id is None:
+                continue
+
+            if score >= threshold:
+                logger.debug("Matched '%s' -> %s (score %.2f).", track.title, video_id, score)
+                return video_id
+
+            if fallback is None or score > fallback[1]:
+                fallback = (video_id, score)
+
+        if fallback is not None:
+            logger.warning(
+                "Low-confidence match (%.2f) for '%s' by %s.",
+                fallback[1],
+                track.title,
+                ", ".join(track.credits),
+            )
+        else:
+            logger.warning(
+                "No match found for '%s' by %s.",
+                track.title,
+                ", ".join(track.credits),
+            )
         return None
+
+    @staticmethod
+    def _best_candidate(track: Track, results: list[dict[str, Any]]) -> tuple[str | None, float]:
+        """Return the highest scoring video ID and its score for a list of results."""
+        best_id: str | None = None
+        best_score = 0.0
+
+        for item in results:
+            video_id = item.get("videoId")
+            if not video_id:
+                continue
+
+            title = item.get("title", "")
+            artists = [
+                artist["name"]
+                for artist in item.get("artists") or []
+                if isinstance(artist, dict) and artist.get("name")
+            ]
+            duration = item.get("duration_seconds")
+            score = score_match(
+                track,
+                title,
+                artists,
+                float(duration) if duration is not None else None,
+            )
+            if score > best_score:
+                best_id, best_score = str(video_id), score
+
+        return best_id, best_score
 
     def create_playlist(
         self,
