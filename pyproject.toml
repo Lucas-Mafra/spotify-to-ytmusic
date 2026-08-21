@@ -54,7 +54,7 @@ files = ["src"]
 pretty = true
 
 [[tool.mypy.overrides]]
-module = ["spotipy", "spotipy.*"]
+module = ["spotipy", "spotipy.*", "browser_cookie3"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
